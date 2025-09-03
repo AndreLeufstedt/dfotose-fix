@@ -24,7 +24,8 @@ import Image from '../model/image';
 import ImageTag from '../model/image-tag';
 import Gallery from '../model/gallery';
 
-
+const imageQueue = require('../image-processor');
+const { v4: uuidv4 } = require('uuid');
 const router = Router();
 export default router;
 
@@ -204,89 +205,65 @@ router.post('/image/:id/gallerythumbnail', (req,res) => {
 
 function handleImages(req, res, galleryId) {
   const userCid = req.session.user.cid;
+  const userFullname = _.get(req.session, 'user.fullname', '');
   const images = req.files;
   
-  // Get photographer name from header, fallback to user's fullname or CID
-  const photographerName = req.headers['x-photographer-name'] || 
-                          req.session.user.fullname || 
-                          req.session.user.cid;
-
-  _.forEach(images, (image) => {
+  let processed = 0;
+  const jobs = [];
+  
+  _.forEach(images, function(image) {
     const fieldName = _.get(image, 'fieldname');
     if (fieldName !== 'photos') {
-      res.status(500).send();
-      throw "incorrect fieldName specified";
+      return;
     }
-
-    const extension = image.originalname.split('.').pop();
-    const filename = uuid.v4();
+    
+    const extension = image.originalname.split('.').pop().toLowerCase();
+    const filename = uuidv4();
     const galleryPath = path.resolve(config.storage.path, galleryId);
-    const fullSizeImagePath = `${galleryPath}/${filename}.${extension}`;
-
+    const fullSizeImagePath = galleryPath + '/' + filename + '.' + extension;
+    
+    // Create directories
     createDirectoryIfNeeded(galleryPath);
     createDirectoryIfNeeded(path.resolve(galleryPath, "thumbnails"));
     createDirectoryIfNeeded(path.resolve(galleryPath, "previews"));
-
-    fs.move(image.path, fullSizeImagePath, (err) => {
+    
+    // Move file then queue it
+    fs.move(image.path, fullSizeImagePath, function(err) {
       if (err) {
-        Logger.error(err);
+        Logger.error('Error moving file:', err);
+        processed++;
+        return;
       }
-
-      const thumbnail = path.resolve(galleryPath, "thumbnails", `${filename}.${extension}`);
-      sharp(fullSizeImagePath)
-        .resize(300, 200)
-        .rotate()
-        .crop(sharp.strategy.entropy)
-        .toFile(thumbnail, (err) => {
-          if (err) {
-            Logger.error(`Could not save thumbnail for image ${filename}`);
-          } else {
-            Logger.info(`Saved thumbnail ${thumbnail}`);
-          }
-        });
-
-      const preview = path.resolve(galleryPath, "previews", `${filename}.${extension}`);
-      sharp(fullSizeImagePath)
-        .resize(null, 800)
-        .rotate()
-        .toFile(preview, (err) => {
-          if (err) {
-            Logger.error(`Could not save preview for image ${filename}`);
-          } else {
-            Logger.info(`Saved preview ${preview}`);
-          }
-        });
-
-      readExifData(fullSizeImagePath, (exif) => {
-        const shotAtUnformatted = _.get(exif, 'tags.DateTimeOriginal');
-        const shotAt = shotAtUnformatted ? moment(shotAtUnformatted)
-                                         : moment();
-
-        var newImage = new Image({
-          filename: filename,
-          authorCid: userCid,
-          author: photographerName, // Set the author name
-          galleryId: galleryId,
-          thumbnail: thumbnail,
-          preview: preview,
-          fullSize: fullSizeImagePath,
-          shotAt: shotAt,
-          exifData: exif
-        });
-
-        newImage.save((err) => {
-          if (err) {
-            Logger.error(err);
-            throw err;
-          }
-
-          Logger.info(`Saved image ${filename} with author ${photographerName}`);
-        });
+      
+      // Add to queue
+      imageQueue.add({
+        fullSizeImagePath: fullSizeImagePath,
+        galleryPath: galleryPath,
+        filename: filename,
+        extension: extension,
+        userCid: userCid,
+        galleryId: galleryId,
+        userFullname: userFullname
+      }, {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000
+        }
+      }).then(function(job) {
+        jobs.push(job.id);
+        processed++;
+        
+        // When all are queued, respond
+        if (processed === images.length) {
+          Logger.info(images.length + ' images queued by ' + userCid);
+        }
+      }).catch(function(err) {
+        Logger.error('Queue error:', err);
+        processed++;
       });
     });
   });
-
-  Logger.info(`${images.length} new images uploaded by ${req.session.user.cid}`);
 }
 
 
@@ -431,6 +408,37 @@ export function updateAuthorOfImagesUploadedByCid(cid, author) {
     });
   });
 }
+
+// Get the queue status for album
+router.get('/image/queue-status/:galleryId', function(req, res) {
+  const galleryId = req.params.galleryId;
+  
+  Promise.all([
+    imageQueue.getWaiting(),
+    imageQueue.getActive(),
+    imageQueue.getCompleted(),
+    imageQueue.getFailed()
+  ]).then(function(results) {
+    const allJobs = results[0].concat(results[1], results[2], results[3]);
+    
+    const galleryJobs = allJobs.filter(function(job) {
+      return job.data && job.data.galleryId === galleryId;
+    }).map(function(job) {
+      return {
+        id: job.id,
+        filename: job.data.filename,
+        progress: job.progress(),
+        state: job.finishedOn ? 'completed' : 
+               job.processedOn ? 'active' : 
+               job.failedReason ? 'failed' : 'waiting'
+      };
+    });
+    
+    res.json(galleryJobs);
+  }).catch(function(err) {
+    res.status(500).json({ error: 'Could not get status' });
+  });
+});
 
 // Delete a specific image
 //  - Note: this automatically removes all gallery
