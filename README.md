@@ -2,7 +2,7 @@
 DFotos hemsida
 ===============
 
-*Versionsnummer*: v1
+*Versionsnummer*: v2
 
 Detta är koden till Datateknologsektionens fotoförenings, hemsida.
 
@@ -102,4 +102,6 @@ DFoto har ett öppet rest-liknande api för att kunna hämta bilder och gallerie
 | GET    | /image/:id/tags                | all the tags associated with an image    |
 | GET    | /image/tags/:name/search       | a list of images that contains a certain tag |
 | GET    | /stats/photos                  | get the amount of pictures on the site   |
+
+*AI-notering*: Detta projekts fortsatt utveckling har delvis utvecklats med hjälp av AI-assistans (Claude) för kodgenerering, felsökning och optimering. All genererad kod har granskats och anpassats innan implementation.
 

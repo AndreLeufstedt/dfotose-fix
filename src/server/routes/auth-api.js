@@ -45,6 +45,7 @@ router.get('/auth/users',
 router.post('/auth/login', jsonParser, (req, res) => {
   const {cid, password} = req.body;
 
+  /*
   // Development bypass - add your CID here
     if (cid === 'dev' && password === 'dev') {
       User.find({ cid: cid }, (err, results) => {
@@ -70,7 +71,7 @@ router.post('/auth/login', jsonParser, (req, res) => {
       });
       return; // Skip Kerberos check
     }
- 
+ */
   Kerberos.authUserKrb5Password(cid, password, '', (err, ok) => {
     abortOnError(err, res);
 
