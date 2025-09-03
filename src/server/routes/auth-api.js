@@ -72,6 +72,7 @@ router.post('/auth/login', jsonParser, (req, res) => {
       return; // Skip Kerberos check
     }
  */
+
   Kerberos.authUserKrb5Password(cid, password, '', (err, ok) => {
     abortOnError(err, res);
 
