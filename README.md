@@ -2,7 +2,7 @@
 DFotos hemsida
 ===============
 
-*Versionsnummer*: v2
+*Versionsnummer*: v1
 
 Detta är koden till Datateknologsektionens fotoförenings, hemsida.
 
