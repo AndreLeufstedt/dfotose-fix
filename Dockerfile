@@ -6,7 +6,6 @@ WORKDIR /dfotose
 COPY package.json .
 RUN npm install
 RUN npm install -g gulp pm2
-RUN npm install bull
 
 # Bundle app source
 COPY . .
@@ -19,4 +18,6 @@ RUN gulp client:build
 
 RUN sh setup-kerberos.sh
 
+
 CMD ["pm2-runtime", "start", "-i", "10", "dist/server.js"]
+

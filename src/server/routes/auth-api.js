@@ -45,8 +45,34 @@ router.get('/auth/users',
 router.post('/auth/login', jsonParser, (req, res) => {
   const {cid, password} = req.body;
 
+  /*
+  // Development bypass - add your CID here
+    if (cid === 'dev' && password === 'dev') {
+      User.find({ cid: cid }, (err, results) => {
+        abortOnError(err, res);
+        if (_.isEmpty(results)) {
+          const user = {
+            cid: cid,
+            fullname: 'Dev User',
+            role: 'Admin'
+          };
+          User(user).save((err) => {
+            abortOnError(err, res);
+            req.session.user = user;
+            Logger.info(`${cid} logged in via dev bypass`);
+            res.send(user);
+          });
+        } else {
+          const user = _.head(results);
+          req.session.user = user;
+          Logger.info(`${cid} logged in via dev bypass`);
+          res.send(user);
+        }
+      });
+      return; // Skip Kerberos check
+    }
+ */
 
- 
   Kerberos.authUserKrb5Password(cid, password, '', (err, ok) => {
     abortOnError(err, res);
 
