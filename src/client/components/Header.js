@@ -48,9 +48,9 @@ class Header extends React.Component {
           {/* Photo count in the middle */}
           <div className={`header-photo-count ${loading ? 'loading' : ''}`}>
             {loading ? (
-              <span>Foton: ...</span>
+              <span>Bilder: ...</span>
             ) : (
-              <span>Foton: <strong>{this.formatNumber(photoCount)}</strong></span>
+              <span>Bilder: <strong>{this.formatNumber(photoCount)}</strong></span>
             )}
           </div>
           
